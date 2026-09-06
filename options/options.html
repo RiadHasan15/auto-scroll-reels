@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auto Scroll Options</title>
+  <style>
+    body {
+      background: #0f111a;
+      color: #e0e6ed;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      max-width: 680px;
+      margin: 40px auto;
+      padding: 0 20px;
+    }
+    h1 { font-size: 24px; color: #fff; margin-bottom: 8px; }
+    p.subtitle { color: #8a99ad; font-size: 14px; margin-bottom: 28px; }
+    .card {
+      background: #1a1d2d;
+      border: 1px solid #2e354f;
+      border-radius: 12px;
+      padding: 20px;
+      margin-bottom: 20px;
+    }
+    .card h2 { font-size: 16px; margin-bottom: 12px; color: #70a1ff; }
+    .platform-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 12px;
+    }
+    .platform-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      background: #24293e;
+      padding: 10px 14px;
+      border-radius: 8px;
+    }
+    .option-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 12px;
+      font-size: 14px;
+    }
+    select {
+      background: #24293e;
+      border: 1px solid #36405c;
+      color: #fff;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 13px;
+    }
+    kbd {
+      background: #2b3248;
+      border: 1px solid #455073;
+      padding: 3px 8px;
+      border-radius: 4px;
+      font-size: 12px;
+      color: #70a1ff;
+    }
+    .save-btn {
+      background: #2ed573;
+      color: #0f111a;
+      font-weight: 700;
+      border: none;
+      padding: 10px 20px;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    .status-msg {
+      margin-left: 12px;
+      font-size: 13px;
+      color: #2ed573;
+    }
+  </style>
+</head>
+<body>
+  <h1>📜 Auto Scroll Options & Settings</h1>
+  <p class="subtitle">Configure platform auto-detection rules, default behaviors, and hotkeys.</p>
+
+  <div class="card">
+    <h2>Playback Defaults</h2>
+    <div class="option-row">
+      <label for="default-loop">Default Loop Count (before scrolling):</label>
+      <select id="default-loop">
+        <option value="1">1x (Normal)</option>
+        <option value="2">2x (Watch twice)</option>
+        <option value="3">3x (Watch 3 times)</option>
+        <option value="5">5x (Loop 5 times)</option>
+      </select>
+    </div>
+    <div class="option-row">
+      <label for="default-unmute">Automatically Unmute Videos:</label>
+      <input type="checkbox" id="default-unmute" style="accent-color:#3742fa; width:18px; height:18px;">
+    </div>
+    <div class="option-row" style="margin-bottom:0;">
+      <label for="default-autohide">Auto-Hide Widget on Mouse Inactivity (3s):</label>
+      <input type="checkbox" id="default-autohide" style="accent-color:#3742fa; width:18px; height:18px;">
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Active Platform Adapters</h2>
+    <p style="font-size: 13px; color: #8a99ad; margin-bottom: 14px;">Select which short-video platforms should automatically trigger video-end auto advancing:</p>
+    <div class="platform-list">
+      <div class="platform-item">
+        <input type="checkbox" id="plat-tiktok" checked>
+        <label for="plat-tiktok">TikTok</label>
+      </div>
+      <div class="platform-item">
+        <input type="checkbox" id="plat-instagram" checked>
+        <label for="plat-instagram">Instagram Reels</label>
+      </div>
+      <div class="platform-item">
+        <input type="checkbox" id="plat-facebook" checked>
+        <label for="plat-facebook">Facebook Reels</label>
+      </div>
+      <div class="platform-item">
+        <input type="checkbox" id="plat-youtube" checked>
+        <label for="plat-youtube">YouTube Shorts</label>
+      </div>
+      <div class="platform-item">
+        <input type="checkbox" id="plat-generic" checked>
+        <label for="plat-generic">Generic Web Pages</label>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>Keyboard Shortcuts</h2>
+    <p style="font-size: 13px; color: #8a99ad;">
+      Default Toggle Hotkey: <kbd>Alt + S</kbd> (Mac: <kbd>Cmd + Shift + S</kbd>)<br>
+      You can customize global extension hotkeys in your browser's shortcut manager (<code style="color:#70a1ff;">chrome://extensions/shortcuts</code>).
+    </p>
+  </div>
+
+  <div>
+    <button class="save-btn" id="save-options">Save Settings</button>
+    <span class="status-msg" id="status-msg"></span>
+  </div>
+
+  <script src="options.js"></script>
+</body>
+</html>

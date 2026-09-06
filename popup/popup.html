@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Auto Scroll</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <div class="header">
+      <div class="brand">
+        <span class="icon">📜</span>
+        <span class="title">Auto Scroll</span>
+      </div>
+      <div class="platform-chip" id="platform-chip">Detecting...</div>
+    </div>
+
+    <button class="main-toggle-btn" id="main-toggle-btn">
+      <span class="toggle-icon" id="toggle-icon">▶</span>
+      <span class="toggle-text" id="toggle-text">Start Auto-Scroll</span>
+    </button>
+
+    <div class="hotkey-hint">
+      Hotkey: <kbd>Alt</kbd> + <kbd>S</kbd>
+    </div>
+
+    <div class="section-title">Speed & Loops</div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Page Scroll Speed</span>
+        <span class="val-display" id="speed-val">50 px/s</span>
+      </div>
+      <input type="range" id="speed-range" min="10" max="300" step="5" value="50">
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Video Advance Delay</span>
+        <span class="val-display" id="delay-val">0.5 sec</span>
+      </div>
+      <input type="range" id="delay-range" min="0" max="5" step="0.5" value="0.5">
+    </div>
+
+    <div class="control-group">
+      <div class="control-label">
+        <span>Watch Loops Before Advancing</span>
+      </div>
+      <div class="loop-btn-group" id="loop-btn-group">
+        <button class="loop-btn active" data-loop="1">1x</button>
+        <button class="loop-btn" data-loop="2">2x</button>
+        <button class="loop-btn" data-loop="3">3x</button>
+        <button class="loop-btn" data-loop="5">5x</button>
+      </div>
+    </div>
+
+    <div class="section-title">Smart Features</div>
+
+    <div class="toggle-row">
+      <span>Auto-Unmute Videos 🔊</span>
+      <label class="switch">
+        <input type="checkbox" id="toggle-unmute">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="toggle-row">
+      <span>Auto-Hide Inactive Widget 👻</span>
+      <label class="switch">
+        <input type="checkbox" id="toggle-autohide">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="toggle-row">
+      <span>Pause on Comments 💬</span>
+      <label class="switch">
+        <input type="checkbox" id="toggle-comments" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="toggle-row">
+      <span>Pause on Mouse Hover 🖱️</span>
+      <label class="switch">
+        <input type="checkbox" id="toggle-hover">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="toggle-row">
+      <span>Show Floating Overlay 💊</span>
+      <label class="switch">
+        <input type="checkbox" id="toggle-overlay" checked>
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="footer">
+      <a href="#" id="open-options">⚙ Options & Keybindings</a>
+    </div>
+  </div>
+
+  <script src="popup.js"></script>
+</body>
+</html>

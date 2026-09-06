@@ -1,0 +1,37 @@
+{
+  "manifest_version": 3,
+  "name": "Auto Scroll - Shorts & Web",
+  "version": "1.0.0",
+  "description": "Automatically scroll TikTok, Instagram Reels, Facebook Reels, YouTube Shorts, and web pages hands-free.",
+  "permissions": [
+    "storage",
+    "activeTab"
+  ],
+  "host_permissions": [
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content/content.js"],
+      "css": ["src/content/overlay.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "popup/popup.html"
+  },
+  "options_page": "options/options.html",
+  "commands": {
+    "toggle-scroll": {
+      "suggested_key": {
+        "default": "Alt+S",
+        "mac": "Command+Shift+S"
+      },
+      "description": "Toggle Auto Scroll"
+    }
+  }
+}

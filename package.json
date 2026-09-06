@@ -1,0 +1,23 @@
+{
+  "name": "auto-scroll-extension",
+  "version": "1.0.0",
+  "description": "Hands-free auto-scroller for YouTube Shorts, Instagram Reels, TikTok, Facebook Reels, and web pages.",
+  "main": "background.js",
+  "scripts": {
+    "check": "node --check background.js src/core/*.js src/adapters/*.js src/content/*.js popup/*.js options/*.js"
+  },
+  "keywords": [
+    "chrome-extension",
+    "manifest-v3",
+    "auto-scroll",
+    "youtube-shorts",
+    "instagram-reels",
+    "tiktok",
+    "facebook-reels",
+    "productivity",
+    "accessibility",
+    "hands-free"
+  ],
+  "author": "Riad Hasan",
+  "license": "MIT"
+}

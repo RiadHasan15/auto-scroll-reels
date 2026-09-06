@@ -1,0 +1,215 @@
+/* Floating Controller Widget Styles */
+#autoscroll-overlay-container {
+  position: fixed;
+  bottom: 24px;
+  right: 24px;
+  z-index: 2147483647;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  user-select: none;
+  direction: ltr;
+  transition: opacity 0.35s ease, transform 0.25s ease;
+}
+
+#autoscroll-overlay-container.autoscroll-faded {
+  opacity: 0.22;
+  transform: scale(0.92);
+}
+
+#autoscroll-overlay-container.autoscroll-faded:hover {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.autoscroll-pill {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(18, 18, 26, 0.90);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 30px;
+  padding: 6px 14px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.2);
+  color: #ffffff;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.autoscroll-drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  color: #8a99ad;
+  padding: 2px 4px;
+  font-size: 13px;
+  letter-spacing: -2px;
+}
+
+.autoscroll-drag-handle:active {
+  cursor: grabbing;
+}
+
+.autoscroll-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #e0e0e0;
+  padding-right: 6px;
+  border-right: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.autoscroll-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #ff4757;
+  transition: background 0.3s ease, box-shadow 0.3s ease;
+}
+
+.autoscroll-status-dot.active {
+  background: #2ed573;
+  box-shadow: 0 0 8px #2ed573;
+}
+
+.autoscroll-loop-chip {
+  background: rgba(55, 66, 250, 0.25);
+  border: 1px solid rgba(55, 66, 250, 0.6);
+  color: #70a1ff;
+  border-radius: 12px;
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.autoscroll-loop-chip:hover {
+  background: rgba(55, 66, 250, 0.45);
+}
+
+.autoscroll-btn {
+  background: transparent;
+  border: none;
+  color: #ffffff;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background 0.2s ease, transform 0.1s ease;
+}
+
+.autoscroll-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  transform: scale(1.08);
+}
+
+.autoscroll-btn:active {
+  transform: scale(0.95);
+}
+
+.autoscroll-play-btn {
+  background: #3742fa;
+  width: 36px;
+  height: 36px;
+}
+
+.autoscroll-play-btn:hover {
+  background: #5352ed;
+}
+
+.autoscroll-play-btn.active {
+  background: #ff4757;
+}
+
+.autoscroll-play-btn.active:hover {
+  background: #ff6b81;
+}
+
+/* Expanded panel drawer */
+.autoscroll-drawer {
+  display: none;
+  position: absolute;
+  bottom: 54px;
+  right: 0;
+  width: 240px;
+  background: rgba(18, 18, 26, 0.96);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  padding: 14px 16px;
+  box-shadow: 0 10px 36px rgba(0, 0, 0, 0.5);
+  color: #fff;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.autoscroll-drawer.open {
+  display: flex;
+}
+
+.autoscroll-drawer-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #a0a0a0;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.autoscroll-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.autoscroll-field-label {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  color: #ccc;
+}
+
+.autoscroll-slider {
+  width: 100%;
+  accent-color: #3742fa;
+  cursor: pointer;
+}
+
+/* Loop selector row in drawer */
+.autoscroll-loop-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  margin-top: 2px;
+}
+
+.autoscroll-loop-btn {
+  flex: 1;
+  background: #24293e;
+  border: 1px solid #36405c;
+  color: #c0c6d4;
+  border-radius: 6px;
+  padding: 4px 0;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.autoscroll-loop-btn:hover {
+  background: #36405c;
+  color: #fff;
+}
+
+.autoscroll-loop-btn.active {
+  background: #3742fa;
+  border-color: #5352ed;
+  color: #fff;
+}
