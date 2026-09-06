@@ -102,7 +102,7 @@ class NewPlatformAdapter extends BaseAdapter {
 
 1. Clone or download this repository:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/auto-scroll-extension.git
+   git clone https://github.com/RiadHasan15/auto-scroll-reels.git
    ```
 2. Open your browser's extension manager:
    * **Chrome / Brave**: `chrome://extensions`
@@ -145,4 +145,4 @@ Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
 
 ---
 
-**Developed with ❤️ by [Riad Hasan](https://github.com/YOUR_USERNAME)**
+**Developed with ❤️ by [Riad Hasan](https://github.com/RiadHasan15)**

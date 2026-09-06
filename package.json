@@ -1,7 +1,8 @@
 {
-  "name": "auto-scroll-extension",
+  "name": "auto-scroll-reels",
   "version": "1.0.0",
   "description": "Hands-free auto-scroller for YouTube Shorts, Instagram Reels, TikTok, Facebook Reels, and web pages.",
+  "repository": "https://github.com/RiadHasan15/auto-scroll-reels",
   "main": "background.js",
   "scripts": {
     "check": "node --check background.js src/core/*.js src/adapters/*.js src/content/*.js popup/*.js options/*.js"

@@ -8,8 +8,8 @@ Thank you for your interest in contributing to **Auto Scroll**! This document pr
 
 1. Fork and clone the repository:
    ```bash
-   git clone https://github.com/YOUR_USERNAME/auto-scroll-extension.git
-   cd auto-scroll-extension
+   git clone https://github.com/RiadHasan15/auto-scroll-reels.git
+   cd auto-scroll-reels
    ```
 2. Load the unpacked extension in Chrome / Edge (`chrome://extensions`).
 3. Make your changes in `src/`.
