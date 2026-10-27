@@ -200,6 +200,85 @@ input:checked + .slider:before {
   transform: translateX(16px);
 }
 
+/* Niche Filter Box */
+.filter-controls-box {
+  background: #191c2b;
+  border: 1px solid #2e354f;
+  border-radius: 10px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.mode-select-row {
+  display: flex;
+  gap: 6px;
+}
+
+.mode-pill-btn {
+  flex: 1;
+  background: #24293e;
+  border: 1px solid #36405c;
+  color: #a4b0be;
+  border-radius: 6px;
+  padding: 5px 0;
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.mode-pill-btn.active {
+  background: #2ed573;
+  border-color: #2ed573;
+  color: #0f111a;
+  font-weight: 700;
+}
+
+.mode-pill-btn.active.blacklist {
+  background: #ff4757;
+  border-color: #ff4757;
+  color: #fff;
+}
+
+.preset-chips-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.preset-chip {
+  background: #252b42;
+  border: 1px solid #36405c;
+  color: #70a1ff;
+  font-size: 10px;
+  padding: 3px 8px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.preset-chip:hover {
+  background: #3742fa;
+  color: #fff;
+}
+
+.popup-text-input {
+  background: #10121d;
+  border: 1px solid #2e354f;
+  border-radius: 6px;
+  color: #fff;
+  padding: 6px 10px;
+  font-size: 11px;
+  outline: none;
+  width: 100%;
+}
+
+.popup-text-input:focus {
+  border-color: #3742fa;
+}
+
 .footer {
   text-align: center;
   padding-top: 6px;

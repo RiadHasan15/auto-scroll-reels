@@ -101,6 +101,38 @@
   </div>
 
   <div class="card">
+    <h2>🎯 Niche Content Filter Defaults</h2>
+    <div class="option-row">
+      <label for="filter-mode-select">Filtering Mode:</label>
+      <select id="filter-mode-select">
+        <option value="disabled">Disabled (Watch all videos)</option>
+        <option value="whitelist">Whitelist (Only watch matching niche)</option>
+        <option value="blacklist">Blacklist (Block unwanted topics)</option>
+      </select>
+    </div>
+    <div style="margin-bottom: 12px;">
+      <label for="filter-keywords-text" style="font-size: 13px; color: #a4b0be; display:block; margin-bottom:4px;">Niche Keywords (comma separated):</label>
+      <input type="text" id="filter-keywords-text" style="width: 100%; box-sizing: border-box; background: #24293e; border: 1px solid #36405c; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 13px;" placeholder="coding, ai, python, machine learning, #tech">
+    </div>
+    <div style="margin-bottom: 12px;">
+      <label for="filter-blacklist-text" style="font-size: 13px; color: #a4b0be; display:block; margin-bottom:4px;">Blocked / Blacklist Terms (comma separated):</label>
+      <input type="text" id="filter-blacklist-text" style="width: 100%; box-sizing: border-box; background: #24293e; border: 1px solid #36405c; color: #fff; padding: 8px 12px; border-radius: 6px; font-size: 13px;" placeholder="prank, gossip, drama">
+    </div>
+    <div class="option-row">
+      <label for="filter-circuit-breaker">Circuit Breaker (Max skips before pause):</label>
+      <input type="number" id="filter-circuit-breaker" min="5" max="50" value="15" style="width: 60px; background: #24293e; border: 1px solid #36405c; color: #fff; padding: 4px 8px; border-radius: 6px;">
+    </div>
+    <div class="option-row">
+      <label for="filter-skip-delay">Skip Pacing Delay (ms):</label>
+      <input type="number" id="filter-skip-delay" min="150" max="1000" step="50" value="300" style="width: 60px; background: #24293e; border: 1px solid #36405c; color: #fff; padding: 4px 8px; border-radius: 6px;">
+    </div>
+    <div class="option-row" style="margin-bottom:0;">
+      <label for="filter-mute-skipping">Mute Audio While Skipping:</label>
+      <input type="checkbox" id="filter-mute-skipping" checked style="accent-color:#3742fa; width:18px; height:18px;">
+    </div>
+  </div>
+
+  <div class="card">
     <h2>Active Platform Adapters</h2>
     <p style="font-size: 13px; color: #8a99ad; margin-bottom: 14px;">Select which short-video platforms should automatically trigger video-end auto advancing:</p>
     <div class="platform-list">

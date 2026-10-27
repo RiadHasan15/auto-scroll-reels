@@ -1,11 +1,179 @@
 /**
  * Content Script - Auto Scroll Extension
+ * Production-Grade Short-Form Video & Web Auto-Scroller with Niche Filtering.
  */
 (function () {
   if (window.__AUTO_SCROLL_INJECTED__) return;
   window.__AUTO_SCROLL_INJECTED__ = true;
 
-  // --- 1. Base Adapter ---
+  // ==========================================
+  // 1. FILTER ENGINE
+  // ==========================================
+
+  class FilterEngine {
+    constructor(options = {}) {
+      this.updateConfig(options);
+      this.consecutiveSkips = 0;
+      this.maxConsecutiveSkips = options.maxConsecutiveSkips || 15;
+      this.skipDelayMs = options.skipDelayMs || 300;
+      this.muteWhileSkipping = options.muteWhileSkipping !== false;
+      this.lastEvaluation = null;
+    }
+
+    updateConfig(options = {}) {
+      this.enabled = !!options.enabled;
+      this.mode = options.mode || 'disabled'; // 'disabled' | 'whitelist' | 'blacklist'
+      this.rawKeywords = Array.isArray(options.keywords) ? options.keywords : [];
+      this.rawBlacklist = Array.isArray(options.blacklist) ? options.blacklist : [];
+      this.matchTargets = {
+        caption: options.matchTargets?.caption !== false,
+        hashtags: options.matchTargets?.hashtags !== false,
+        audio: options.matchTargets?.audio !== false,
+        author: !!options.matchTargets?.author
+      };
+      if (options.maxConsecutiveSkips) {
+        this.maxConsecutiveSkips = parseInt(options.maxConsecutiveSkips, 10) || 15;
+      }
+      if (options.skipDelayMs) {
+        this.skipDelayMs = parseInt(options.skipDelayMs, 10) || 300;
+      }
+      if (typeof options.muteWhileSkipping === 'boolean') {
+        this.muteWhileSkipping = options.muteWhileSkipping;
+      }
+
+      this.compiledKeywords = this._compileRules(this.rawKeywords);
+      this.compiledBlacklist = this._compileRules(this.rawBlacklist);
+    }
+
+    _compileRules(list) {
+      if (!list || !list.length) return [];
+      return list
+        .map(k => (typeof k === 'string' ? k.trim().toLowerCase() : ''))
+        .filter(k => k.length > 0)
+        .map(raw => {
+          const isHashtag = raw.startsWith('#');
+          const clean = raw.replace(/^#/, '');
+          const escaped = clean.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+          let regex;
+          if (isHashtag) {
+            regex = new RegExp(`(?:^|[\\s.,!?_\\-])#${escaped}(?=[\\s.,!?_\\-]|$)`, 'i');
+          } else if (clean.includes(' ')) {
+            const phraseRegex = clean
+              .split(/\s+/)
+              .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'))
+              .join('\\s+');
+            regex = new RegExp(`(?:^|[\\s.,!?_\\-])${phraseRegex}(?=[\\s.,!?_\\-]|$)`, 'i');
+          } else {
+            regex = new RegExp(`(?:^|[\\s.,!?_\\-])${escaped}(?=[\\s.,!?_\\-]|$)`, 'i');
+          }
+          return { raw, regex };
+        });
+    }
+
+    _buildSearchableCorpus(metadata) {
+      if (!metadata) return '';
+      const parts = [];
+      if (this.matchTargets.caption && metadata.caption) parts.push(metadata.caption);
+      if (this.matchTargets.hashtags && Array.isArray(metadata.hashtags)) {
+        parts.push(metadata.hashtags.map(h => (h.startsWith('#') ? h : `#${h}`)).join(' '));
+      }
+      if (this.matchTargets.audio && metadata.audio) parts.push(metadata.audio);
+      if (this.matchTargets.author && metadata.author) parts.push(metadata.author);
+      if (!parts.length && metadata.fullText) parts.push(metadata.fullText);
+      return parts.join(' ').toLowerCase();
+    }
+
+    evaluate(metadata) {
+      if (!this.enabled || this.mode === 'disabled') {
+        this.lastEvaluation = { pass: true, matchedKeyword: null, reason: 'Filter disabled' };
+        return this.lastEvaluation;
+      }
+
+      const corpus = this._buildSearchableCorpus(metadata);
+
+      // Check Global Blacklist
+      if (this.compiledBlacklist.length > 0) {
+        for (const rule of this.compiledBlacklist) {
+          if (rule.regex.test(corpus)) {
+            this.lastEvaluation = {
+              pass: false,
+              matchedKeyword: rule.raw,
+              reason: `Blacklisted: "${rule.raw}"`
+            };
+            return this.lastEvaluation;
+          }
+        }
+      }
+
+      // Whitelist Mode
+      if (this.mode === 'whitelist') {
+        if (!this.compiledKeywords.length) {
+          this.lastEvaluation = { pass: true, matchedKeyword: null, reason: 'Whitelist empty' };
+          return this.lastEvaluation;
+        }
+
+        for (const rule of this.compiledKeywords) {
+          if (rule.regex.test(corpus)) {
+            this.lastEvaluation = {
+              pass: true,
+              matchedKeyword: rule.raw,
+              reason: `Matched: "${rule.raw}"`
+            };
+            return this.lastEvaluation;
+          }
+        }
+
+        this.lastEvaluation = {
+          pass: false,
+          matchedKeyword: null,
+          reason: 'No niche keywords matched'
+        };
+        return this.lastEvaluation;
+      }
+
+      // Blacklist-only Mode
+      if (this.mode === 'blacklist') {
+        for (const rule of this.compiledKeywords) {
+          if (rule.regex.test(corpus)) {
+            this.lastEvaluation = {
+              pass: false,
+              matchedKeyword: rule.raw,
+              reason: `Filtered: "${rule.raw}"`
+            };
+            return this.lastEvaluation;
+          }
+        }
+        this.lastEvaluation = { pass: true, matchedKeyword: null, reason: 'No blacklist terms found' };
+        return this.lastEvaluation;
+      }
+
+      return { pass: true, matchedKeyword: null, reason: 'Default pass' };
+    }
+
+    recordSkip() {
+      this.consecutiveSkips++;
+      const isTripped = this.consecutiveSkips >= this.maxConsecutiveSkips;
+      return {
+        consecutiveSkips: this.consecutiveSkips,
+        max: this.maxConsecutiveSkips,
+        isTripped
+      };
+    }
+
+    recordMatch() {
+      this.consecutiveSkips = 0;
+    }
+
+    resetCircuit() {
+      this.consecutiveSkips = 0;
+    }
+  }
+
+  // ==========================================
+  // 2. BASE ADAPTER
+  // ==========================================
+
   class BaseAdapter {
     constructor() {
       this.id = 'generic';
@@ -42,6 +210,23 @@
       }) || videos[0];
     }
     isCommentsOpen() { return false; }
+    getMetadata() {
+      return { caption: '', hashtags: [], audio: '', author: '', fullText: '' };
+    }
+    async waitForMetadata(maxWaitMs = 250) {
+      const meta = this.getMetadata();
+      if (meta.fullText && meta.fullText.length > 5) return meta;
+      const start = Date.now();
+      return new Promise(resolve => {
+        const interval = setInterval(() => {
+          const m = this.getMetadata();
+          if ((m.fullText && m.fullText.length > 5) || Date.now() - start >= maxWaitMs) {
+            clearInterval(interval);
+            resolve(m);
+          }
+        }, 50);
+      });
+    }
     scrollToNext() { window.scrollBy({ top: window.innerHeight * 0.75, behavior: 'smooth' }); }
     scrollToPrevious() { window.scrollBy({ top: -window.innerHeight * 0.75, behavior: 'smooth' }); }
     observeVideoEnded(callback) {
@@ -114,7 +299,9 @@
     }
   }
 
-  // --- 2. Platform Adapters ---
+  // ==========================================
+  // 3. PLATFORM ADAPTERS
+  // ==========================================
 
   class TikTokAdapter extends BaseAdapter {
     constructor() { super(); this.id = 'tiktok'; this.name = 'TikTok'; }
@@ -131,6 +318,15 @@
     }
     isCommentsOpen() {
       return !!(document.querySelector('[data-e2e="comment-list"]') || document.querySelector('[class*="CommentContainer"]'));
+    }
+    getMetadata() {
+      const container = document.querySelector('[data-e2e="recommend-list-item-container"]') || document;
+      const descEl = container.querySelector('[data-e2e="video-desc"]');
+      const caption = descEl ? descEl.innerText.trim() : '';
+      const tags = Array.from(container.querySelectorAll('a[href*="/tag/"]')).map(a => a.innerText.trim());
+      const audioEl = container.querySelector('[data-e2e="video-music"]');
+      const audio = audioEl ? audioEl.innerText.trim() : '';
+      return { caption, hashtags: tags, audio, author: '', fullText: `${caption} ${tags.join(' ')} ${audio}` };
     }
     scrollToNext() {
       const nextBtn = document.querySelector('[data-e2e="arrow-right"]') || document.querySelector('[aria-label="Next video"]') || document.querySelector('button[class*="ButtonControlDown"]');
@@ -188,6 +384,55 @@
         return rect.width > 0 && rect.height > 0;
       }
       return false;
+    }
+    getMetadata() {
+      const video = this.getVideoElement();
+      if (!video) {
+        return { caption: '', hashtags: [], audio: '', author: '', fullText: '' };
+      }
+
+      const container = video.closest('article') ||
+                        video.closest('section') ||
+                        video.closest('div[role="presentation"]') ||
+                        video.parentElement.parentElement;
+
+      if (!container) {
+        return { caption: '', hashtags: [], audio: '', author: '', fullText: '' };
+      }
+
+      let author = '';
+      const authorEl = container.querySelector('header a[role="link"], a[href^="/"][role="link"]');
+      if (authorEl) author = authorEl.innerText.trim().replace(/^@/, '');
+
+      let audio = '';
+      const audioEl = container.querySelector('a[href*="/audio/"], [aria-label*="audio" i], [aria-label*="Original audio" i]');
+      if (audioEl) audio = audioEl.innerText.trim();
+
+      const hashtags = [];
+      const tagLinks = container.querySelectorAll('a[href*="/explore/tags/"]');
+      tagLinks.forEach(a => {
+        const tag = a.innerText.trim();
+        if (tag) hashtags.push(tag.startsWith('#') ? tag : `#${tag}`);
+      });
+
+      const captionSelectors = ['h1', 'span[class*="_a9zs"]', 'div[class*="caption"]', 'span[dir="auto"]'];
+      const foundTexts = [];
+      container.querySelectorAll(captionSelectors.join(',')).forEach(el => {
+        if (el.closest('button') || el.closest('[role="button"]') || el.closest('header')) return;
+        const t = el.innerText.trim();
+        if (t && t.length > 2 && !foundTexts.includes(t)) foundTexts.push(t);
+      });
+
+      const caption = foundTexts.join(' ');
+      const regexTags = caption.match(/#[a-zA-Z0-9_\u00C0-\u024F]+/g);
+      if (regexTags) {
+        regexTags.forEach(t => {
+          if (!hashtags.includes(t)) hashtags.push(t);
+        });
+      }
+
+      const fullText = [caption, hashtags.join(' '), audio, author].filter(Boolean).join(' ');
+      return { caption, hashtags, audio, author, fullText };
     }
     scrollToNext() {
       const currentVideo = this.getVideoElement();
@@ -338,6 +583,15 @@
       if (commentsPanel && commentsPanel.getAttribute('visibility') === 'ENGAGEMENT_PANEL_VISIBILITY_EXPANDED') return true;
       return !!(document.querySelector('ytd-comments#comments:not([hidden])'));
     }
+    getMetadata() {
+      const renderer = document.querySelector('ytd-reel-video-renderer[is-active]') || document;
+      const titleEl = renderer.querySelector('h2.title, #headline');
+      const caption = titleEl ? titleEl.innerText.trim() : '';
+      const tags = Array.from(renderer.querySelectorAll('a[href*="/hashtag/"]')).map(a => a.innerText.trim());
+      const authorEl = renderer.querySelector('#channel-name a, yt-formatted-string.ytd-channel-name');
+      const author = authorEl ? authorEl.innerText.trim() : '';
+      return { caption, hashtags: tags, audio: '', author, fullText: `${caption} ${tags.join(' ')} ${author}` };
+    }
     scrollToNext() {
       const nextBtn = document.querySelector('#navigation-button-down button') || document.querySelector('ytd-reel-video-renderer[is-active] #navigation-button-down button');
       if (nextBtn) { nextBtn.click(); return; }
@@ -358,7 +612,10 @@
     static matches(url) { return true; }
   }
 
-  // --- 3. Platform Manager ---
+  // ==========================================
+  // 4. PLATFORM MANAGER
+  // ==========================================
+
   class PlatformManager {
     constructor() {
       this.adapters = [TikTokAdapter, InstagramAdapter, FacebookAdapter, YouTubeAdapter, GenericAdapter];
@@ -393,11 +650,19 @@
     }
   }
 
-  // --- 4. Scroll Engine ---
+  // ==========================================
+  // 5. SCROLL ENGINE (WITH NICHE FILTERING)
+  // ==========================================
+
   class ScrollEngine {
-    constructor(platformManager) {
+    constructor(platformManager, filterEngine = null) {
       this.platformManager = platformManager;
+      this.filterEngine = filterEngine || new FilterEngine();
       this.isRunning = false;
+      this.isSkipping = false;
+      this.lastEvaluatedVideo = null;
+      this.onStatusUpdateCallback = null;
+
       this.settings = {
         scrollSpeed: 50,
         autoAdvanceDelay: 0.5,
@@ -405,15 +670,32 @@
         pauseOnComments: true,
         autoUnmute: false,
         loopCount: 1,
-        autoHideOverlay: false
+        autoHideOverlay: false,
+        filterSettings: {
+          enabled: false,
+          mode: 'disabled',
+          keywords: ['coding', 'ai', 'tech', 'python'],
+          blacklist: ['prank', 'gossip', 'drama'],
+          maxConsecutiveSkips: 15,
+          skipDelayMs: 300,
+          muteWhileSkipping: true,
+          matchTargets: { caption: true, hashtags: true, audio: true, author: false }
+        }
       };
+
       this.animationFrameId = null;
       this.lastTimestamp = null;
       this.userInteracting = false;
       this.interactionTimeout = null;
       this.isMouseHovered = false;
+
       this.initInteractionListeners();
     }
+
+    onStatusUpdate(callback) {
+      this.onStatusUpdateCallback = callback;
+    }
+
     updateSettings(s) {
       if (!s) return;
       this.settings = {
@@ -423,19 +705,31 @@
         pauseOnComments: typeof s.pauseOnComments === 'boolean' ? s.pauseOnComments : this.settings.pauseOnComments,
         autoUnmute: typeof s.autoUnmute === 'boolean' ? s.autoUnmute : this.settings.autoUnmute,
         loopCount: Number.isFinite(s.loopCount) ? parseInt(s.loopCount, 10) : (this.settings.loopCount || 1),
-        autoHideOverlay: typeof s.autoHideOverlay === 'boolean' ? s.autoHideOverlay : this.settings.autoHideOverlay
+        autoHideOverlay: typeof s.autoHideOverlay === 'boolean' ? s.autoHideOverlay : this.settings.autoHideOverlay,
+        filterSettings: s.filterSettings ? { ...this.settings.filterSettings, ...s.filterSettings } : this.settings.filterSettings
       };
+
+      if (this.filterEngine) {
+        this.filterEngine.updateConfig(this.settings.filterSettings);
+      }
+
       const adapter = this.platformManager.getActiveAdapter();
       if (adapter) {
         if (typeof adapter.setLoopCount === 'function') adapter.setLoopCount(this.settings.loopCount);
         if (typeof adapter.setAutoUnmute === 'function') adapter.setAutoUnmute(this.settings.autoUnmute);
       }
     }
+
     start() {
       if (this.isRunning) return;
       this.isRunning = true;
+      this.isSkipping = false;
+      this.lastEvaluatedVideo = null;
+      this.filterEngine.resetCircuit();
+
       chrome.storage.sync.set({ isEnabled: true });
       const adapter = this.platformManager.getActiveAdapter();
+
       if (adapter.id === 'generic') {
         this.startContinuousScroll();
       } else {
@@ -444,36 +738,140 @@
         this.startVideoEndObserve();
       }
     }
+
     stop() {
       this.isRunning = false;
+      this.isSkipping = false;
       chrome.storage.sync.set({ isEnabled: false });
-      if (this.animationFrameId) { cancelAnimationFrame(this.animationFrameId); this.animationFrameId = null; }
+
+      if (this.animationFrameId) {
+        cancelAnimationFrame(this.animationFrameId);
+        this.animationFrameId = null;
+      }
+
       const adapter = this.platformManager.getActiveAdapter();
       if (adapter) adapter.cleanup();
     }
+
     toggle() {
       if (this.isRunning) this.stop(); else this.start();
       return this.isRunning;
     }
+
     startVideoEndObserve() {
+      const adapter = this.platformManager.getActiveAdapter();
+      if (!adapter) return;
+
       const checkAndAttach = () => {
         if (!this.isRunning) return;
-        const adapter = this.platformManager.getActiveAdapter();
-        adapter.observeVideoEnded(() => this.handleVideoEnded());
-        setTimeout(() => { if (this.isRunning) checkAndAttach(); }, 1000);
+
+        adapter.observeVideoEnded(() => {
+          this.handleVideoEnded();
+        });
+
+        // Trigger Niche Filtering on active video switch
+        const currentVideo = adapter.getVideoElement();
+        if (currentVideo && currentVideo !== this.lastEvaluatedVideo) {
+          this.lastEvaluatedVideo = currentVideo;
+          this.evaluateActiveVideo(adapter, currentVideo);
+        }
+
+        setTimeout(() => { if (this.isRunning) checkAndAttach(); }, 500);
       };
+
       checkAndAttach();
     }
+
+    async evaluateActiveVideo(adapter, video) {
+      if (!this.isRunning || !this.filterEngine.enabled || this.filterEngine.mode === 'disabled') {
+        return;
+      }
+
+      const originalMuted = video.muted;
+      if (this.filterEngine.muteWhileSkipping) {
+        video.muted = true;
+      }
+
+      if (typeof this.onStatusUpdateCallback === 'function') {
+        this.onStatusUpdateCallback({ status: 'evaluating', text: 'Scanning...' });
+      }
+
+      // Wait up to 250ms for asynchronous description hydration
+      const metadata = await adapter.waitForMetadata(250);
+
+      if (!this.isRunning || adapter.getVideoElement() !== video) {
+        return;
+      }
+
+      const result = this.filterEngine.evaluate(metadata);
+
+      if (result.pass) {
+        // MATCHED
+        this.filterEngine.recordMatch();
+        this.isSkipping = false;
+
+        if (this.settings.autoUnmute) {
+          adapter.unmuteVideo();
+        } else {
+          video.muted = originalMuted;
+        }
+
+        if (typeof this.onStatusUpdateCallback === 'function') {
+          this.onStatusUpdateCallback({
+            status: 'matched',
+            keyword: result.matchedKeyword,
+            text: result.matchedKeyword ? `🎯 ${result.matchedKeyword}` : '🎯 Matched'
+          });
+        }
+      } else {
+        // REJECTED -> SKIP
+        this.isSkipping = true;
+        const breaker = this.filterEngine.recordSkip();
+
+        if (breaker.isTripped) {
+          this.stop();
+          if (typeof this.onStatusUpdateCallback === 'function') {
+            this.onStatusUpdateCallback({
+              status: 'tripped',
+              skips: breaker.consecutiveSkips,
+              text: `⚠️ Paused (${breaker.consecutiveSkips} skips)`
+            });
+          }
+          return;
+        }
+
+        if (typeof this.onStatusUpdateCallback === 'function') {
+          this.onStatusUpdateCallback({
+            status: 'skipping',
+            reason: result.reason,
+            skips: breaker.consecutiveSkips,
+            text: `⏭️ Skip (${breaker.consecutiveSkips}/${breaker.max})`
+          });
+        }
+
+        setTimeout(() => {
+          if (this.isRunning && this.isSkipping) {
+            adapter.scrollToNext();
+          }
+        }, this.filterEngine.skipDelayMs);
+      }
+    }
+
     handleVideoEnded() {
-      if (!this.isRunning) return;
+      if (!this.isRunning || this.isSkipping) return;
+
       const adapter = this.platformManager.getActiveAdapter();
       if (this.settings.pauseOnComments && adapter.isCommentsOpen()) return;
       if (this.settings.pauseOnHover && this.isMouseHovered) return;
+
       const delayMs = (this.settings.autoAdvanceDelay ?? 0.5) * 1000;
       setTimeout(() => {
-        if (this.isRunning) adapter.scrollToNext();
+        if (this.isRunning && !this.isSkipping) {
+          adapter.scrollToNext();
+        }
       }, delayMs);
     }
+
     startContinuousScroll() {
       this.lastTimestamp = performance.now();
       const scrollStep = (timestamp) => {
@@ -493,6 +891,7 @@
       };
       this.animationFrameId = requestAnimationFrame(scrollStep);
     }
+
     initInteractionListeners() {
       const handleAction = () => {
         if (!this.isRunning) return;
@@ -507,18 +906,29 @@
     }
   }
 
-  // --- 5. UI Controller & Draggable Overlay ---
+  // ==========================================
+  // 6. UI CONTROLLER & DRAGGABLE FLOATING HUD
+  // ==========================================
 
+  let filterEngine = new FilterEngine();
   let platformManager = new PlatformManager();
-  let scrollEngine = new ScrollEngine(platformManager);
+  let scrollEngine = new ScrollEngine(platformManager, filterEngine);
 
   let overlayContainer = null;
   let playBtn = null;
   let statusDot = null;
   let badgeText = null;
   let loopChip = null;
+  let nicheChip = null;
   let drawer = null;
   let fadeTimeout = null;
+
+  const PRESETS = {
+    tech: ['coding', 'ai', 'tech', 'python', 'developer', '#programming', 'software'],
+    fitness: ['gym', 'workout', 'fitness', '#bodybuilding', 'nutrition', 'calisthenics'],
+    finance: ['stocks', 'investing', 'finance', 'business', 'money', 'real estate'],
+    cooking: ['recipe', 'cooking', 'food', 'chef', 'baking', '#delicious']
+  };
 
   function createOverlayUI(savedPos) {
     if (document.getElementById('autoscroll-overlay-container')) return;
@@ -527,7 +937,6 @@
     overlayContainer = document.createElement('div');
     overlayContainer.id = 'autoscroll-overlay-container';
 
-    // Restore saved drag position if available
     if (savedPos && Number.isFinite(savedPos.left) && Number.isFinite(savedPos.top)) {
       overlayContainer.style.left = `${savedPos.left}px`;
       overlayContainer.style.top = `${savedPos.top}px`;
@@ -537,8 +946,11 @@
 
     overlayContainer.innerHTML = `
       <div class="autoscroll-drawer" id="autoscroll-drawer">
-        <div class="autoscroll-drawer-title">Auto Scroll Controls</div>
+        <div class="autoscroll-drawer-title">
+          <span>Auto Scroll Controls</span>
+        </div>
         
+        <!-- Speed & Delay -->
         <div class="autoscroll-field">
           <div class="autoscroll-field-label">
             <span>Scroll Speed</span>
@@ -555,6 +967,7 @@
           <input type="range" id="delay-slider" class="autoscroll-slider" min="0" max="5" step="0.5" value="0.5">
         </div>
 
+        <!-- Loop Selector -->
         <div class="autoscroll-field">
           <div class="autoscroll-field-label">
             <span>Loop Video Count</span>
@@ -567,7 +980,43 @@
           </div>
         </div>
 
-        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 4px;">
+        <div class="autoscroll-section-divider"></div>
+
+        <!-- Niche Filter Section -->
+        <div class="autoscroll-drawer-title">
+          <span>🎯 Niche Content Filter</span>
+          <input type="checkbox" id="filter-enabled-toggle" style="accent-color:#2ed573; cursor:pointer;">
+        </div>
+
+        <div class="autoscroll-filter-modes">
+          <button class="autoscroll-filter-mode-btn active" id="mode-whitelist" data-mode="whitelist">Whitelist (Keep Niche)</button>
+          <button class="autoscroll-filter-mode-btn" id="mode-blacklist" data-mode="blacklist">Blacklist (Block)</button>
+        </div>
+
+        <!-- Quick Presets -->
+        <div class="autoscroll-field">
+          <div class="autoscroll-field-label">
+            <span>Niche Presets:</span>
+          </div>
+          <div class="autoscroll-presets-container">
+            <span class="autoscroll-preset-chip" data-preset="tech">💻 Tech & AI</span>
+            <span class="autoscroll-preset-chip" data-preset="fitness">🏋️ Gym</span>
+            <span class="autoscroll-preset-chip" data-preset="finance">💰 Finance</span>
+            <span class="autoscroll-preset-chip" data-preset="cooking">🍳 Cooking</span>
+          </div>
+        </div>
+
+        <!-- Keyword Tags -->
+        <div class="autoscroll-field">
+          <div class="autoscroll-field-label">
+            <span>Keywords (Press Enter):</span>
+          </div>
+          <div class="autoscroll-tags-box" id="tags-box">
+            <input type="text" id="keyword-input" class="autoscroll-tag-input" placeholder="+ Add keyword or #tag">
+          </div>
+        </div>
+
+        <div style="display: flex; justify-content: space-between; align-items: center; font-size: 11px; margin-top: 2px;">
           <span>Auto-Unmute Videos</span>
           <input type="checkbox" id="unmute-drawer-toggle" style="accent-color:#3742fa; cursor:pointer;">
         </div>
@@ -579,6 +1028,7 @@
           <span class="autoscroll-status-dot" id="autoscroll-dot"></span>
           <span id="autoscroll-badge-text">Web</span>
         </div>
+        <span class="autoscroll-niche-chip" id="autoscroll-niche-chip" title="Niche Filter Status">🎯 All</span>
         <span class="autoscroll-loop-chip" id="autoscroll-loop-chip" title="Click to change loop count">1x</span>
         <button class="autoscroll-btn" id="autoscroll-prev-btn" title="Previous">▲</button>
         <button class="autoscroll-btn autoscroll-play-btn" id="autoscroll-play-btn" title="Toggle Auto Scroll (Alt+S)">▶</button>
@@ -593,9 +1043,10 @@
     statusDot = document.getElementById('autoscroll-dot');
     badgeText = document.getElementById('autoscroll-badge-text');
     loopChip = document.getElementById('autoscroll-loop-chip');
+    nicheChip = document.getElementById('autoscroll-niche-chip');
     drawer = document.getElementById('autoscroll-drawer');
 
-    // Button event listeners
+    // Controls
     playBtn.addEventListener('click', () => {
       const active = scrollEngine.toggle();
       updateUIState(active);
@@ -613,7 +1064,12 @@
       drawer.classList.toggle('open');
     });
 
-    // Quick Loop Count cycling from pill chip
+    // Niche chip click opens drawer
+    nicheChip.addEventListener('click', () => {
+      drawer.classList.add('open');
+    });
+
+    // Quick Loop Count cycling
     const loopOptions = [1, 2, 3, 5];
     loopChip.addEventListener('click', () => {
       const current = scrollEngine.settings.loopCount || 1;
@@ -622,7 +1078,6 @@
       updateLoopCount(nextVal);
     });
 
-    // Loop buttons in drawer
     drawer.querySelectorAll('.autoscroll-loop-btn').forEach(btn => {
       btn.addEventListener('click', (e) => {
         const val = parseInt(e.target.dataset.loop, 10);
@@ -639,7 +1094,7 @@
       });
     }
 
-    // Auto-Unmute toggle in drawer
+    // Auto-Unmute toggle
     const unmuteToggle = document.getElementById('unmute-drawer-toggle');
     unmuteToggle.checked = !!scrollEngine.settings.autoUnmute;
     unmuteToggle.addEventListener('change', (e) => {
@@ -666,15 +1121,165 @@
       chrome.storage.sync.set({ autoAdvanceDelay: val });
     });
 
-    // Drag-and-drop mechanism
+    // Niche Filter Drawer Handlers
+    initNicheFilterUI();
+
+    // Draggable
     initDraggable();
 
-    // Auto-hide / fade listener
+    // Auto-fade
     initAutoHideListener();
+
+    // Status callback
+    scrollEngine.onStatusUpdate(handleEngineStatusUpdate);
 
     updateBadge();
     updateUIState(scrollEngine.isRunning);
-    if (loopChip) loopChip.textContent = `${scrollEngine.settings.loopCount || 1}x`;
+    renderNicheChipState();
+  }
+
+  function initNicheFilterUI() {
+    const filterToggle = document.getElementById('filter-enabled-toggle');
+    const modeWhitelist = document.getElementById('mode-whitelist');
+    const modeBlacklist = document.getElementById('mode-blacklist');
+    const tagsBox = document.getElementById('tags-box');
+    const keywordInput = document.getElementById('keyword-input');
+
+    const fs = scrollEngine.settings.filterSettings;
+    filterToggle.checked = !!fs.enabled;
+
+    function renderFilterModes() {
+      const mode = fs.mode || 'whitelist';
+      modeWhitelist.classList.toggle('active', mode === 'whitelist');
+      modeBlacklist.classList.toggle('active', mode === 'blacklist');
+      modeBlacklist.classList.toggle('blacklist', mode === 'blacklist');
+    }
+
+    function renderTags() {
+      // Remove existing tags except input
+      tagsBox.querySelectorAll('.autoscroll-tag').forEach(t => t.remove());
+
+      const keywords = fs.keywords || [];
+      keywords.forEach(kw => {
+        const tag = document.createElement('span');
+        tag.className = 'autoscroll-tag';
+        tag.innerHTML = `<span>${kw}</span><span class="autoscroll-tag-remove" data-kw="${kw}">×</span>`;
+        tagsBox.insertBefore(tag, keywordInput);
+      });
+    }
+
+    filterToggle.addEventListener('change', (e) => {
+      fs.enabled = e.target.checked;
+      if (fs.enabled && fs.mode === 'disabled') fs.mode = 'whitelist';
+      scrollEngine.updateSettings({ filterSettings: fs });
+      chrome.storage.sync.set({ filterSettings: fs });
+      renderNicheChipState();
+    });
+
+    modeWhitelist.addEventListener('click', () => {
+      fs.mode = 'whitelist';
+      renderFilterModes();
+      scrollEngine.updateSettings({ filterSettings: fs });
+      chrome.storage.sync.set({ filterSettings: fs });
+      renderNicheChipState();
+    });
+
+    modeBlacklist.addEventListener('click', () => {
+      fs.mode = 'blacklist';
+      renderFilterModes();
+      scrollEngine.updateSettings({ filterSettings: fs });
+      chrome.storage.sync.set({ filterSettings: fs });
+      renderNicheChipState();
+    });
+
+    // Tag Input
+    keywordInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ',') {
+        e.preventDefault();
+        const val = keywordInput.value.trim().toLowerCase();
+        if (val && !fs.keywords.includes(val)) {
+          fs.keywords.push(val);
+          keywordInput.value = '';
+          renderTags();
+          scrollEngine.updateSettings({ filterSettings: fs });
+          chrome.storage.sync.set({ filterSettings: fs });
+          renderNicheChipState();
+        }
+      }
+    });
+
+    tagsBox.addEventListener('click', (e) => {
+      if (e.target.classList.contains('autoscroll-tag-remove')) {
+        const kw = e.target.dataset.kw;
+        fs.keywords = fs.keywords.filter(k => k !== kw);
+        renderTags();
+        scrollEngine.updateSettings({ filterSettings: fs });
+        chrome.storage.sync.set({ filterSettings: fs });
+        renderNicheChipState();
+      }
+    });
+
+    // Presets
+    drawer.querySelectorAll('.autoscroll-preset-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const key = chip.dataset.preset;
+        if (PRESETS[key]) {
+          fs.enabled = true;
+          filterToggle.checked = true;
+          fs.mode = 'whitelist';
+          fs.keywords = [...PRESETS[key]];
+          renderFilterModes();
+          renderTags();
+          scrollEngine.updateSettings({ filterSettings: fs });
+          chrome.storage.sync.set({ filterSettings: fs });
+          renderNicheChipState();
+        }
+      });
+    });
+
+    renderFilterModes();
+    renderTags();
+  }
+
+  function renderNicheChipState() {
+    if (!nicheChip) return;
+    const fs = scrollEngine.settings.filterSettings;
+    nicheChip.classList.remove('skipping', 'tripped');
+
+    if (!fs.enabled || fs.mode === 'disabled') {
+      nicheChip.textContent = '🎯 All';
+      nicheChip.style.display = 'inline-block';
+    } else if (fs.mode === 'whitelist') {
+      const count = (fs.keywords || []).length;
+      nicheChip.textContent = count ? `🎯 Niche (${count})` : '🎯 Whitelist';
+      nicheChip.style.display = 'inline-block';
+    } else if (fs.mode === 'blacklist') {
+      nicheChip.textContent = '🛡️ Blocklist';
+      nicheChip.style.display = 'inline-block';
+    }
+  }
+
+  function handleEngineStatusUpdate(info) {
+    if (!nicheChip || !statusDot) return;
+
+    if (info.status === 'evaluating') {
+      nicheChip.textContent = info.text;
+      statusDot.className = 'autoscroll-status-dot active';
+    } else if (info.status === 'matched') {
+      nicheChip.className = 'autoscroll-niche-chip';
+      nicheChip.textContent = info.text;
+      statusDot.className = 'autoscroll-status-dot matched';
+      setTimeout(() => renderNicheChipState(), 3000);
+    } else if (info.status === 'skipping') {
+      nicheChip.className = 'autoscroll-niche-chip skipping';
+      nicheChip.textContent = info.text;
+      statusDot.className = 'autoscroll-status-dot skipping';
+    } else if (info.status === 'tripped') {
+      nicheChip.className = 'autoscroll-niche-chip tripped';
+      nicheChip.textContent = info.text;
+      statusDot.className = 'autoscroll-status-dot tripped';
+      updateUIState(false);
+    }
   }
 
   function initDraggable() {
@@ -709,7 +1314,6 @@
         let newLeft = origLeft + dx;
         let newTop = origTop + dy;
 
-        // Clamp inside window boundaries
         const w = overlayContainer.offsetWidth;
         const h = overlayContainer.offsetHeight;
         newLeft = Math.max(10, Math.min(window.innerWidth - w - 10, newLeft));
@@ -726,7 +1330,6 @@
         window.removeEventListener('mousemove', onMouseMove);
         window.removeEventListener('mouseup', onMouseUp);
 
-        // Save position
         const rect = overlayContainer.getBoundingClientRect();
         chrome.storage.sync.set({
           widgetPosition: { left: Math.round(rect.left), top: Math.round(rect.top) }
@@ -789,7 +1392,7 @@
   chrome.storage.sync.get([
     'scrollSpeed', 'autoAdvanceDelay', 'showOverlay', 'pauseOnHover',
     'pauseOnComments', 'isEnabled', 'autoUnmute', 'loopCount',
-    'autoHideOverlay', 'widgetPosition'
+    'autoHideOverlay', 'widgetPosition', 'filterSettings'
   ], (res) => {
     if (res) {
       scrollEngine.updateSettings(res);
@@ -825,11 +1428,13 @@
         adapterId: platformManager.getActiveAdapter().id,
         loopCount: scrollEngine.settings.loopCount,
         autoUnmute: scrollEngine.settings.autoUnmute,
-        autoHideOverlay: scrollEngine.settings.autoHideOverlay
+        autoHideOverlay: scrollEngine.settings.autoHideOverlay,
+        filterSettings: scrollEngine.settings.filterSettings
       });
     } else if (request.action === 'UPDATE_SETTINGS') {
       scrollEngine.updateSettings(request.settings);
       if (loopChip && request.settings.loopCount) loopChip.textContent = `${request.settings.loopCount}x`;
+      renderNicheChipState();
       sendResponse({ success: true });
     }
     return true;

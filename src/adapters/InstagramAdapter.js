@@ -59,6 +59,75 @@ class InstagramAdapter extends BaseAdapter {
     return false;
   }
 
+  getMetadata() {
+    const video = this.getVideoElement();
+    if (!video) {
+      return { caption: '', hashtags: [], audio: '', author: '', fullText: '' };
+    }
+
+    const container = video.closest('article') ||
+                      video.closest('section') ||
+                      video.closest('div[role="presentation"]') ||
+                      video.parentElement.parentElement;
+
+    if (!container) {
+      return { caption: '', hashtags: [], audio: '', author: '', fullText: '' };
+    }
+
+    // 1. Author
+    let author = '';
+    const authorEl = container.querySelector('header a[role="link"], a[href^="/"][role="link"]');
+    if (authorEl) {
+      author = authorEl.innerText.trim().replace(/^@/, '');
+    }
+
+    // 2. Audio title
+    let audio = '';
+    const audioEl = container.querySelector('a[href*="/audio/"], [aria-label*="audio" i], [aria-label*="Original audio" i]');
+    if (audioEl) {
+      audio = audioEl.innerText.trim();
+    }
+
+    // 3. Hashtags
+    const hashtags = [];
+    const tagLinks = container.querySelectorAll('a[href*="/explore/tags/"]');
+    tagLinks.forEach(a => {
+      const tag = a.innerText.trim();
+      if (tag) hashtags.push(tag.startsWith('#') ? tag : `#${tag}`);
+    });
+
+    // 4. Captions & text
+    const captionSelectors = ['h1', 'span[class*="_a9zs"]', 'div[class*="caption"]', 'span[dir="auto"]'];
+    const foundTexts = [];
+    container.querySelectorAll(captionSelectors.join(',')).forEach(el => {
+      if (el.closest('button') || el.closest('[role="button"]') || el.closest('header')) {
+        return;
+      }
+      const t = el.innerText.trim();
+      if (t && t.length > 2 && !foundTexts.includes(t)) {
+        foundTexts.push(t);
+      }
+    });
+
+    const caption = foundTexts.join(' ');
+    const regexTags = caption.match(/#[a-zA-Z0-9_\u00C0-\u024F]+/g);
+    if (regexTags) {
+      regexTags.forEach(t => {
+        if (!hashtags.includes(t)) hashtags.push(t);
+      });
+    }
+
+    const fullText = [caption, hashtags.join(' '), audio, author].filter(Boolean).join(' ');
+
+    return {
+      caption,
+      hashtags,
+      audio,
+      author,
+      fullText
+    };
+  }
+
   scrollToNext() {
     const currentVideo = this.getVideoElement();
     const videos = Array.from(document.querySelectorAll('main video, video')).filter(v => {

@@ -11,6 +11,21 @@ const DEFAULT_SETTINGS = {
   loopCount: 1,
   autoHideOverlay: false,
   widgetPosition: null,
+  filterSettings: {
+    enabled: false,
+    mode: 'whitelist',
+    keywords: ['coding', 'ai', 'tech', 'python'],
+    blacklist: ['prank', 'gossip', 'drama'],
+    maxConsecutiveSkips: 15,
+    skipDelayMs: 300,
+    muteWhileSkipping: true,
+    matchTargets: {
+      caption: true,
+      hashtags: true,
+      audio: true,
+      author: false
+    }
+  },
   enabledPlatforms: {
     tiktok: true,
     instagram: true,

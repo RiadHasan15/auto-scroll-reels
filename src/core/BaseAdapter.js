@@ -57,6 +57,33 @@ class BaseAdapter {
     return false;
   }
 
+  getMetadata() {
+    return {
+      caption: '',
+      hashtags: [],
+      audio: '',
+      author: '',
+      fullText: ''
+    };
+  }
+
+  async waitForMetadata(maxWaitMs = 250) {
+    const meta = this.getMetadata();
+    if (meta.fullText && meta.fullText.length > 5) {
+      return meta;
+    }
+    const start = Date.now();
+    return new Promise(resolve => {
+      const interval = setInterval(() => {
+        const m = this.getMetadata();
+        if ((m.fullText && m.fullText.length > 5) || Date.now() - start >= maxWaitMs) {
+          clearInterval(interval);
+          resolve(m);
+        }
+      }, 50);
+    });
+  }
+
   scrollToNext() {
     window.scrollBy({ top: window.innerHeight * 0.75, behavior: 'smooth' });
   }

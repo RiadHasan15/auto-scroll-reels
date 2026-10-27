@@ -1,17 +1,33 @@
 /**
  * Main Auto-Scroll Engine
+ * Orchestrates continuous smooth scrolling, video end auto-advance,
+ * and production-grade niche filtering & fast-skipping.
  */
 class ScrollEngine {
-  constructor(platformManager) {
+  constructor(platformManager, filterEngine = null) {
     this.platformManager = platformManager;
+    this.filterEngine = filterEngine || new FilterEngine();
     this.isRunning = false;
+    this.isSkipping = false;
+    this.lastEvaluatedVideo = null;
+    this.onStatusUpdateCallback = null;
+
     this.settings = {
       scrollSpeed: 50,
       autoAdvanceDelay: 0.5,
       pauseOnHover: false,
       pauseOnComments: true,
       autoUnmute: false,
-      loopCount: 1
+      loopCount: 1,
+      filterSettings: {
+        enabled: false,
+        mode: 'disabled',
+        keywords: [],
+        blacklist: [],
+        maxConsecutiveSkips: 15,
+        skipDelayMs: 300,
+        muteWhileSkipping: true
+      }
     };
 
     this.animationFrameId = null;
@@ -23,6 +39,10 @@ class ScrollEngine {
     this.initInteractionListeners();
   }
 
+  onStatusUpdate(callback) {
+    this.onStatusUpdateCallback = callback;
+  }
+
   updateSettings(newSettings) {
     if (!newSettings) return;
     this.settings = {
@@ -31,8 +51,13 @@ class ScrollEngine {
       pauseOnHover: typeof newSettings.pauseOnHover === 'boolean' ? newSettings.pauseOnHover : this.settings.pauseOnHover,
       pauseOnComments: typeof newSettings.pauseOnComments === 'boolean' ? newSettings.pauseOnComments : this.settings.pauseOnComments,
       autoUnmute: typeof newSettings.autoUnmute === 'boolean' ? newSettings.autoUnmute : this.settings.autoUnmute,
-      loopCount: Number.isFinite(newSettings.loopCount) ? parseInt(newSettings.loopCount, 10) : (this.settings.loopCount || 1)
+      loopCount: Number.isFinite(newSettings.loopCount) ? parseInt(newSettings.loopCount, 10) : (this.settings.loopCount || 1),
+      filterSettings: newSettings.filterSettings ? { ...this.settings.filterSettings, ...newSettings.filterSettings } : this.settings.filterSettings
     };
+
+    if (this.filterEngine) {
+      this.filterEngine.updateConfig(this.settings.filterSettings);
+    }
 
     const adapter = this.platformManager.getActiveAdapter();
     if (adapter) {
@@ -44,6 +69,9 @@ class ScrollEngine {
   start() {
     if (this.isRunning) return;
     this.isRunning = true;
+    this.isSkipping = false;
+    this.lastEvaluatedVideo = null;
+    this.filterEngine.resetCircuit();
 
     chrome.storage.sync.set({ isEnabled: true });
     const adapter = this.platformManager.getActiveAdapter();
@@ -59,6 +87,7 @@ class ScrollEngine {
 
   stop() {
     this.isRunning = false;
+    this.isSkipping = false;
     chrome.storage.sync.set({ isEnabled: false });
 
     if (this.animationFrameId) {
@@ -92,16 +121,101 @@ class ScrollEngine {
         this.handleVideoEnded();
       });
 
+      // Check for active video switch to trigger Niche Filter evaluation
+      const currentVideo = adapter.getVideoElement();
+      if (currentVideo && currentVideo !== this.lastEvaluatedVideo) {
+        this.lastEvaluatedVideo = currentVideo;
+        this.evaluateActiveVideo(adapter, currentVideo);
+      }
+
       setTimeout(() => {
         if (this.isRunning) checkAndAttach();
-      }, 1000);
+      }, 500);
     };
 
     checkAndAttach();
   }
 
+  async evaluateActiveVideo(adapter, video) {
+    if (!this.isRunning || !this.filterEngine.enabled || this.filterEngine.mode === 'disabled') {
+      return;
+    }
+
+    const originalMuted = video.muted;
+    if (this.filterEngine.muteWhileSkipping) {
+      video.muted = true;
+    }
+
+    if (typeof this.onStatusUpdateCallback === 'function') {
+      this.onStatusUpdateCallback({ status: 'evaluating', text: 'Scanning reel...' });
+    }
+
+    // Wait up to 250ms for asynchronous React description hydration
+    const metadata = await adapter.waitForMetadata(250);
+
+    // Abort if user scrolled away or stopped while evaluating
+    if (!this.isRunning || adapter.getVideoElement() !== video) {
+      return;
+    }
+
+    const result = this.filterEngine.evaluate(metadata);
+
+    if (result.pass) {
+      // MATCHED! Keep video playing
+      this.filterEngine.recordMatch();
+      this.isSkipping = false;
+
+      if (this.settings.autoUnmute) {
+        adapter.unmuteVideo();
+      } else {
+        video.muted = originalMuted;
+      }
+
+      if (typeof this.onStatusUpdateCallback === 'function') {
+        this.onStatusUpdateCallback({
+          status: 'matched',
+          keyword: result.matchedKeyword,
+          text: result.matchedKeyword ? `🎯 Matched: ${result.matchedKeyword}` : '🎯 Niche matched'
+        });
+      }
+    } else {
+      // REJECTED -> SKIP!
+      this.isSkipping = true;
+      const breaker = this.filterEngine.recordSkip();
+
+      if (breaker.isTripped) {
+        // Circuit breaker tripped! Halt to prevent infinite scrolling
+        this.stop();
+        if (typeof this.onStatusUpdateCallback === 'function') {
+          this.onStatusUpdateCallback({
+            status: 'tripped',
+            skips: breaker.consecutiveSkips,
+            text: `⚠️ Paused: ${breaker.consecutiveSkips} skips without match`
+          });
+        }
+        return;
+      }
+
+      if (typeof this.onStatusUpdateCallback === 'function') {
+        this.onStatusUpdateCallback({
+          status: 'skipping',
+          reason: result.reason,
+          skips: breaker.consecutiveSkips,
+          text: `⏭️ Skipping non-niche (${breaker.consecutiveSkips}/${breaker.max})`
+        });
+      }
+
+      // Paced skip execution
+      setTimeout(() => {
+        if (this.isRunning && this.isSkipping) {
+          adapter.scrollToNext();
+        }
+      }, this.filterEngine.skipDelayMs);
+    }
+  }
+
   handleVideoEnded() {
-    if (!this.isRunning) return;
+    if (!this.isRunning || this.isSkipping) return;
 
     const adapter = this.platformManager.getActiveAdapter();
 
@@ -116,7 +230,7 @@ class ScrollEngine {
     const delayMs = (this.settings.autoAdvanceDelay ?? 0.5) * 1000;
 
     setTimeout(() => {
-      if (this.isRunning) {
+      if (this.isRunning && !this.isSkipping) {
         adapter.scrollToNext();
       }
     }, delayMs);

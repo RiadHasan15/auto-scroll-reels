@@ -97,6 +97,35 @@
       </label>
     </div>
 
+    <div class="section-title">Niche Video Filter 🎯</div>
+
+    <div class="toggle-row">
+      <span>Enable Niche Filter</span>
+      <label class="switch">
+        <input type="checkbox" id="toggle-filter">
+        <span class="slider"></span>
+      </label>
+    </div>
+
+    <div class="filter-controls-box" id="filter-controls-box">
+      <div class="mode-select-row">
+        <button class="mode-pill-btn active" id="popup-mode-whitelist">Whitelist (Keep)</button>
+        <button class="mode-pill-btn" id="popup-mode-blacklist">Blacklist (Block)</button>
+      </div>
+
+      <div class="preset-chips-row">
+        <span class="preset-chip" data-preset="tech">💻 Tech/AI</span>
+        <span class="preset-chip" data-preset="fitness">🏋️ Fitness</span>
+        <span class="preset-chip" data-preset="finance">💰 Finance</span>
+        <span class="preset-chip" data-preset="cooking">🍳 Food</span>
+      </div>
+
+      <div class="control-label" style="margin-top:6px;">
+        <span>Keywords (comma separated):</span>
+      </div>
+      <input type="text" id="popup-keywords-input" class="popup-text-input" placeholder="e.g. coding, ai, python, #gym">
+    </div>
+
     <div class="footer">
       <a href="#" id="open-options">⚙ Options & Keybindings</a>
     </div>

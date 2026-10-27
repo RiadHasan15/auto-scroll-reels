@@ -16,9 +16,32 @@ document.addEventListener('DOMContentLoaded', () => {
   const toggleHover = document.getElementById('toggle-hover');
   const toggleOverlay = document.getElementById('toggle-overlay');
 
+  // Niche Filter Elements
+  const toggleFilter = document.getElementById('toggle-filter');
+  const modeWhitelist = document.getElementById('popup-mode-whitelist');
+  const modeBlacklist = document.getElementById('popup-mode-blacklist');
+  const keywordsInput = document.getElementById('popup-keywords-input');
+  const presetChips = document.querySelectorAll('.preset-chip');
+
   const openOptions = document.getElementById('open-options');
 
   let currentLoopCount = 1;
+  let currentFilterSettings = {
+    enabled: false,
+    mode: 'whitelist',
+    keywords: ['coding', 'ai', 'tech', 'python'],
+    blacklist: ['prank', 'gossip', 'drama'],
+    maxConsecutiveSkips: 15,
+    skipDelayMs: 300,
+    muteWhileSkipping: true
+  };
+
+  const PRESETS = {
+    tech: ['coding', 'ai', 'tech', 'python', 'developer', '#programming', 'software'],
+    fitness: ['gym', 'workout', 'fitness', '#bodybuilding', 'nutrition', 'calisthenics'],
+    finance: ['stocks', 'investing', 'finance', 'business', 'money', 'real estate'],
+    cooking: ['recipe', 'cooking', 'food', 'chef', 'baking', '#delicious']
+  };
 
   // Load active tab status
   chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -43,7 +66,8 @@ document.addEventListener('DOMContentLoaded', () => {
     showOverlay: true,
     autoUnmute: false,
     loopCount: 1,
-    autoHideOverlay: false
+    autoHideOverlay: false,
+    filterSettings: currentFilterSettings
   }, (s) => {
     speedRange.value = s.scrollSpeed;
     speedVal.textContent = `${s.scrollSpeed} px/s`;
@@ -59,6 +83,14 @@ document.addEventListener('DOMContentLoaded', () => {
     toggleComments.checked = s.pauseOnComments;
     toggleHover.checked = s.pauseOnHover;
     toggleOverlay.checked = s.showOverlay;
+
+    if (s.filterSettings) {
+      currentFilterSettings = { ...currentFilterSettings, ...s.filterSettings };
+    }
+
+    toggleFilter.checked = !!currentFilterSettings.enabled;
+    updateFilterModeButtons(currentFilterSettings.mode || 'whitelist');
+    keywordsInput.value = (currentFilterSettings.keywords || []).join(', ');
   });
 
   // Main Play/Pause toggle
@@ -93,13 +125,63 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
-  // Loop count button click
   loopBtnGroup.querySelectorAll('.loop-btn').forEach(btn => {
     btn.addEventListener('click', (e) => {
       const val = parseInt(e.target.dataset.loop, 10);
       currentLoopCount = val;
       updateLoopButtons(val);
       saveAndSyncSettings();
+    });
+  });
+
+  function updateFilterModeButtons(mode) {
+    modeWhitelist.classList.toggle('active', mode === 'whitelist');
+    modeBlacklist.classList.toggle('active', mode === 'blacklist');
+    modeBlacklist.classList.toggle('blacklist', mode === 'blacklist');
+  }
+
+  toggleFilter.addEventListener('change', (e) => {
+    currentFilterSettings.enabled = e.target.checked;
+    if (currentFilterSettings.enabled && currentFilterSettings.mode === 'disabled') {
+      currentFilterSettings.mode = 'whitelist';
+    }
+    updateFilterModeButtons(currentFilterSettings.mode);
+    saveAndSyncSettings();
+  });
+
+  modeWhitelist.addEventListener('click', () => {
+    currentFilterSettings.mode = 'whitelist';
+    updateFilterModeButtons('whitelist');
+    saveAndSyncSettings();
+  });
+
+  modeBlacklist.addEventListener('click', () => {
+    currentFilterSettings.mode = 'blacklist';
+    updateFilterModeButtons('blacklist');
+    saveAndSyncSettings();
+  });
+
+  keywordsInput.addEventListener('change', () => {
+    const raw = keywordsInput.value;
+    currentFilterSettings.keywords = raw
+      .split(',')
+      .map(k => k.trim().toLowerCase())
+      .filter(k => k.length > 0);
+    saveAndSyncSettings();
+  });
+
+  presetChips.forEach(chip => {
+    chip.addEventListener('click', () => {
+      const presetKey = chip.dataset.preset;
+      if (PRESETS[presetKey]) {
+        currentFilterSettings.enabled = true;
+        toggleFilter.checked = true;
+        currentFilterSettings.mode = 'whitelist';
+        currentFilterSettings.keywords = [...PRESETS[presetKey]];
+        updateFilterModeButtons('whitelist');
+        keywordsInput.value = currentFilterSettings.keywords.join(', ');
+        saveAndSyncSettings();
+      }
     });
   });
 
@@ -112,7 +194,8 @@ document.addEventListener('DOMContentLoaded', () => {
       autoHideOverlay: toggleAutoHide.checked,
       pauseOnComments: toggleComments.checked,
       pauseOnHover: toggleHover.checked,
-      showOverlay: toggleOverlay.checked
+      showOverlay: toggleOverlay.checked,
+      filterSettings: currentFilterSettings
     };
 
     chrome.storage.sync.set(settings);
